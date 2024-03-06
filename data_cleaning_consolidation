@@ -1,0 +1,282 @@
+#Program to clean and consolidate the marijuana data
+# Read the Excel file using `read_excel()`
+def open_spreadsheet(filename):
+   
+    return pd.read_excel(filename)
+# method using Numpy to read pickled array
+def dataArray_of_pickle(filename):
+        
+    return np.load(filename, allow_pickle=True)
+# method using pubchempy to change a chemical name to its molecular formula
+def name_to_molecule(chemicalName):
+    
+    # get a list of compounds with chemical name, and calling name method in get_compounds
+    compoundID = pcp.get_compounds(chemicalName, 'name')
+    
+    #get the molecular formula from the compoundID
+    if len(compoundID) > 1:
+        return compoundID[0]
+    if len(compoundID) < 1:
+        return chemicalName
+    return compoundID[0]
+    
+    
+# Method to change the smiles nomenclature to molecular nomenclature needed for imaging
+def molecule(smileMolecule):
+    
+    # from rdkit change smiles mlecular structure to common nomenclature
+    molecule = Chem.MolFromSmiles(smileMolecule)
+    
+    # None is returned if m is not a valid molecule
+    return molecule
+    
+# method to turn any smiles molecule into the 2d image
+def draw_molecule(molecule):
+    
+    # from rdkit change molecular structure to image
+    molecularImage = Draw.MolToImage(molecule)
+    # None is returned if molecular formula is not a valid structure
+    return molecularImage
+# cmethod to onvert a molecule to smiles nomenclature
+def Smiles_Molecule(molecule):
+    
+    smilesMolecule = Chem.MolToSmiles(molecule)
+    return smilesMolecule[:5]
+# Method to extract the keywords from one dictionary key
+def extract_keywords(dictionary, category, subcategory):
+    allExtracted = []
+    for review in dictionary[category]:
+        allExtracted.extend(review.get(subcategory, []))
+    
+    return allExtracted
+# method to test part of speech
+def part_of_speech(text):
+    
+    return pos_tag(word_tokenize(text))[0][1]
+# method to get the root words of a string of words
+def root_word(text):
+    
+    # instantiate a lemmatizer
+    wnl = WordNetLemmatizer()
+    
+    return wnl.lemmatize(text, pos='a')
+    
+# Method to extract top 5 effects
+def filter_words(inputList):
+    
+    filteredWords = []    
+    #inputList = word_tokenize(inputList)
+    
+    for text in inputList: 
+        text = root_word(text)            
+        filteredWords.append(text)      
+            
+    return filteredWords
+# Method to return a list with most frequent words
+def top_words(inputList, number):
+    wordCount = Counter(inputList)
+    topWords = wordCount.most_common(number)
+    
+    return topWords
+# Raw data files
+
+terpDATA = "~strains/rawDATATerp.xlsx"
+canaDATA = "~strains/rawDATACana.xlsx"
+#create databases from the strain files
+
+terpDB = open_spreadsheet(terpDATA)
+canaDB = open_spreadsheet(canaDATA)
+# clean and concatonate strain databases
+
+terpDB = terpDB.drop(['Unnamed: 0','Type'], axis=1) 
+canaDB = canaDB.drop(['Unnamed: 0','Type'], axis=1) 
+mjDB = canaDB.merge(terpDB, on=['tag','File'])
+mjDB = mjDB.drop(['File'], axis=1)
+#create a csv of the DB so we don' have to reopen and parse files
+
+mjDB.to_csv("~strains/mjDB.csv")
+# create list of strains, removing duplicates
+
+filelist = list(set(mjDB['tag']))
+# Create a dictionary of the effects for each strain
+
+effectDict = {'strains':'effects'}
+
+count = 0
+
+# iterate through the list of strains to open each strains data file and add the information to the dictionary
+for file in filelist:
+
+    filename = "~strains/" + file + '.p'
+
+    try:
+        dataArray = dataArray_of_pickle(filename)        
+        keyWords = extract_keywords(dataArray, 'data_strain', 'efectos')                
+        effectDict[file] = filter_words(keyWords)        
+        
+    except:
+        count += 1
+# blue-dream did not have a file
+                                       
+                           
+# Create a list of all words
+
+strains =list(effectDict.keys())
+
+alleffect = []
+
+for strain in strains:
+    effectlist = list(effectDict[strain])
+    
+    for effect in effectlist:
+        if len(str(effect)) > 1:
+            alleffect.append(effect)
+    
+       
+# create a list of unique terms in effect dictionary
+conEffect = list(set(alleffect))
+len(conEffect)
+30
+# create a wordcloud of effects
+
+# instantiate a word cloud
+effectWC = WordCloud()
+wordString = str()
+
+wordString = (' ').join(alleffect)
+# generate wordcloud
+wordcloud = effectWC.generate(wordString)
+plt.imshow(wordcloud)
+plt.savefig("~strains/wordcloud.png", bbox_inches='tight')
+plt.show()
+plt.close()
+
+# identify the most frequent 10 words
+
+hfwcount = top_words(alleffect, 10)
+hfwords=[]
+for hf in hfwcount:
+    hfwords.append(hf[0])
+# confirm no effects are universal
+
+difEffects = []
+for effect in conEffect:
+    for strain in strains:
+        if effect not in effectDict[strain]:
+            difEffects.append(effect)
+            
+difEffects = list(set(difEffects))
+print(len(difEffects),difEffects)
+30 ['Anxious', 'Depression', 'Aroused', 'Eye Pressure', 'Euphoric', 'Talkative', 'Epilepsy', 'Migraines', 'Relaxed', 'Dizzy', 'Happy', 'Anxiety', 'Seizures', 'Creative', 'Headache', 'Energetic', 'Hungry', 'Tingly', 'Dry Eyes', 'Uplifted', 'Pain', 'Focused', 'Paranoid', 'Stress', 'Giggly', 'Spasticity', 'Arthritis', 'Sleepy', 'Dry Mouth', 'Fatigue']
+# create a network map of effect
+
+effects = list(set(alleffect))
+strains =list(effectDict.keys())
+columns=['Strains'] + effects
+
+# initialize occurance dictionary
+
+ocDict = {'Strains':'Effects'}
+ocDF = pd.DataFrame(columns=columns)
+
+
+for strain in strains:
+    wordCount = Counter(list(effectDict[strain]))
+    efflist = [strain]
+    for effect in effects:
+        i=0
+        if effect in wordCount:
+            i = int(wordCount[effect])
+        efflist.append(i)
+    ocDF.loc[-1]= efflist
+    ocDF.index = ocDF.index +1
+    ocDf = ocDF.sort_index()
+            
+      
+mj2DB = mjDB.merge(ocDF, left_on='tag', right_on='Strains')
+effectDF.to_csv("~strains/mj2db.csv")
+# create a network map of effect
+effects = list(set(alleffect))
+
+# initialize occurance dictionary
+ocDict = {'Strains':effects}
+effectDF.to_csv("~strains/effectcc.csv")
+# create a network map of effect
+effects = list(set(hfwords))
+
+# initialize occurance dictionary
+ocDict = {'Strains':effects}
+
+for strain in strains:
+    wordCount = Counter(list(effectDict[strain]))
+    efflist = []
+    for effect in effects:
+        i=0
+        if effect in wordCount:
+            i = int(wordCount[effect])
+        efflist.append(i)
+    ocDict[strain]= efflist
+            
+effectDF1 = pd.DataFrame.from_dict(ocDict)      
+effectDF.to_csv("~strains/effectcc10.csv")
+# to create a dispersion plot: sometextfield.dispersion_plot([list of words])
+#to create a frequency plot: frequency_distribution.plot(number, cumulative=True)
+# Get the molecular formula for the compounds found in Marijuana
+components = mjDB.columns[2:]
+molecules = []
+count = 0
+
+for component in components:
+    
+    # some molecules were not easily identified and needed to be researched
+    if component == 'THC acid':
+        compmol = 'Compound(198013)'
+    
+    elif component == 'Delta9-THC acid':
+        compmol = 'Compound(98523)'
+    
+    elif component == 'Trans-Nerolidol1':
+        compmol = 'Compound(5284507)'
+   
+    elif component == 'Trans-Nerolidol2':
+        compmol = 'Compound(8888)'
+    
+    else:
+        compmol = name_to_molecule(component)
+    molecules.append(compmol)
+# test rdkit methods
+m = 'CC1=CC[C@@H](CC1)C(=C)C'
+draw_molecule(molecule(m))
+
+#test conversion of chemical name
+print(name_to_molecule('D-Limonene'))
+CC1=CC[C@@H](CC1)C(=C)C
+# Method to summarize sentiment of consumer reports
+def summarize_sentiment(file):
+    
+    # Sentiment analyzer object
+    analyzer = SentimentIntensityAnalyzer()
+    scores = analyzer.polarity_scores(file)
+
+    # Analyze sentiment for each review
+    #suammry = analyzer.score_valence(file)
+    
+    return scores
+          
+# create a network map of effect
+strains =list(effectDict.keys())
+
+# initialize occurance dictionary
+ocDict = {'Strains':'Effects'}
+
+for strain in strains:
+    wordCount = Counter(list(effectDict[strain]))
+    efflist = []
+    for effect in conEffect:
+        i=0
+        if effect in wordCount:
+            i = int(wordCount[effect])
+        efflist.append(i)
+    ocDict[strain]= efflist
+            
+effectDF = pd.DataFrame.from_dict(ocDict)      
