@@ -48,38 +48,61 @@ Guide users on setting up the project locally.
     nltk.download('averaged_perceptron_tagger') # part of speech
     
 #### Import required libraries
-    import re
-    import pandas as pd
-    import numpy as np
-    import csv
-    import os
-    import sys
-    from rdkit import Chem
-    from rdkit.Chem import Draw
-    import pubchempy as pcp
     from collections import Counter
-    import matplotlib.pyplot as plt #to support wordcloud
-    from wordcloud import WordCloud
-    import nltk
-    from nltk import pos_tag, word_tokenize #parses words or sentances
-    from nltk.corpus import stopwords
-    from nltk.stem import WordNetLemmatizer #finds the root word
-    from nltk import FreqDist
-    from nltk.sentiment.vader import SentimentIntensityAnalyzer
-    from nltk.corpus import treebank
-    from sklearn.datasets import make_classification
-    from sklearn import linear_model
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.model_selection import train_test_split
-    from sklearn.pipeline import make_pipeline
-    from sklearn.metrics import accuracy_score
-    from sklearn.metrics import mean_squared_error
-    from sklearn.metrics import classification_report
-    from sklearn.metrics import confusion_matrix
-    from sklearn.metrics import balanced_accuracy_score
-    from sklearn.compose import ColumnTransformer 
-    from sklearn.impute import SimpleImputer
-    from sklearn import preprocessing
+from matplotlib.colors import ListedColormap
+from nltk import FreqDist
+from nltk import pos_tag, word_tokenize #parses words or sentances
+from nltk.corpus import stopwords
+from nltk.corpus import treebank
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from nltk.stem import WordNetLemmatizer #finds the root word
+from pathlib import Path
+from rdkit import Chem
+from rdkit.Chem import Draw
+from sklearn import ensemble
+from sklearn import gaussian_process
+from sklearn import linear_model
+from sklearn import neighbors
+from sklearn import preprocessing
+from sklearn import svm
+from sklearn import tree
+from sklearn.compose import ColumnTransformer 
+from sklearn.datasets import make_classification
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
+from sklearn.ensemble import AdaBoostRegressor
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import balanced_accuracy_score
+from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import mean_squared_error
+from sklearn.metrics import PredictionErrorDisplay
+from sklearn.model_selection import learning_curve
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.neural_network import MLPRegressor
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from wordcloud import WordCloud
+import csv
+import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt #to support wordcloud
+import nltk
+import numpy as np
+import os
+import pandas as pd
+import pubchempy as pcp
+import re
+import scipy.stats as stats
+import statsmodels.api as sm
+import sys
     
 ### Installation
 
@@ -135,6 +158,81 @@ Once the categories were identified, the frequency of each effect was counted in
 
 ## Results
 
+For the category II effects that were candidates for regression we can identify the marijuana compounds positively correlated with effect.  The table below shows five effects which share the a positive correlation with the same compounds. 
+
+Effect	Positive correlation
+Eye Pressure	CBD	cannabinol	CBC	THCV	CBDa	Beta-Myrcene	Alpha-Pinene	Camphene	P-Cymene
+Epilepsy	CBD	cannabinol	CBC	THCV	CBDa	Beta-Myrcene	Alpha-Pinene	Camphene	P-Cymene
+Seizure	CBD	cannabinol	CBC	THCV	CBDa	Beta-Myrcene	Alpha-Pinene	Camphene	P-Cymene
+Pain	CBD	cannabinol	CBC	THCV	CBDa	Beta-Myrcene	Alpha-Pinene	Camphene	P-Cymene
+Arthritis	CBD	cannabinol	CBC	THCV	CBDa	Beta-Myrcene	Alpha-Pinene	Camphene	P-Cymene
+Fatigue	CBD	cannabinol	CBC	THCV	CBDa	Beta-Myrcene	Alpha-Pinene	Camphene	P-Cymene
+TABLE 1: COMPOUNDS WITH A POSITIVE CORRELATION TO RELIEVING EYE PRESSURE, EPILEPSY, SEIZURES, PAIN ARTHRITIS, AND FATIGUE 
+
+The remaining category II regression effects share few similarities with the other reported effect and each other.  A summary of the positively correlated compounds is in the table below.
+
+Effect	Positive correlation
+Stress	Delta8-THC	Alpha-Terpinene	Alpha-Pinene	 Beta-Myrcene	Alpha-Humulene	Terpinolene	Trans-Nerolidol2	 Caryophyllene
+Spasticity	THC acid	Alpha-Terpinene	Gamma-Terpinene	Guaiol	Alpha-Humulene	 	 	
+TABLE 2: COMPOUNDS WITH A POSITIVE CORRELATION TO RELIEVING STRESS AND SPASTICITY 
+
+For the reported effects that were analyzed by classification algorithm directionality is more difficult to assess.  Instead, I have included a table of the identified “features of importance”, as the most likely compounds to contribute to the reported effect.
+
+Effect	Features of importance
+Aroused	CBD	Eucalyptol	CBG	 
+Talkative	Beta-Caryophyllene	Eucalyptol	CBGa	CBD
+Creative	Beta-Caryophyllene	Eucalyptol	Caryophyllene	CBD
+Energetic	Eucalyptol	Gamma-Terpinene	Guaiol	CBD
+Hungry	Beta-Caryophyllene	cannabinol	Caryophyllene	CBD
+Tingly	Caryophyllene	Delta9-THC acid	Beta-Caryophyllene	CBD
+Focused	Beta-Caryophyllene	CBD	Alpha-Pinene	Beta-Pinene
+Paranoid	Gamma-Terpinene	Eucalyptol	Guaiol	CBD
+TABLE 3: COMPOUNDS IDENTIFIED AS FEATURES OF IMPORTANCE FOR CAT. 1
+ 
+Effect	Features of importance
+Depression	Terpinolene	Alpha-Pinene	D-Limonene	CBD
+Migraines	Caryophyllene	Terpinolene	CBD	 
+Dizzy	Delta9-THC acid	Terpinolene	CBD	 
+Anxiety	Eucalyptol	Alpha-Humulene	Terpinolene	CBD
+Headache	Eucalyptol	Delta9-THC acid	CBD	 
+Dry Eyes	Gamma-Terpinene	CBGa	cannabinol	CBD
+Dry Mouth	Beta-Caryophyllene	Eucalyptol	Caryophyllene	CBD
+TABLE 4: COMPOUNDS IDENTIFIED AS FEATURES OF IMPORTANCE FOR CAT II, CLASSIFICATION EFFECTS.
+
+The classification features of importance are listed in order from most important to least important.
+Twenty-four compounds appear to be significant out of the forty-one that were investigated.
+Compounds	Frequency
+
+CBD	21
+Alpha-Pinene	9
+Eucalyptol	8
+cannabinol	8
+Beta-Myrcene	7
+Caryophyllene	6
+Beta-Caryophyllene	6
+Camphene	6
+CBDa	6
+P-Cymene	6
+Terpinolene	5
+Gamma-Terpinene	4
+Delta9-THC acid	3
+Alpha-Humulene	3
+Guaiol	3
+Alpha-Terpinene	2
+CBGa	2
+Delta8-THC	1
+CBG	1
+D-Limonene	1
+Trans-Nerolidol2	1
+THC acid	1
+Beta-Pinene	1
+TABLE 5: LIST OF COMPOUNDS CORRELATED TO REPORTED EFFECTS
+
+ 
+GRAPH 3: GEPHI = FORCED ATLAS CONFUSION MATRIX DIAGRAM 
+
+This diagram demonstrates the separation of the five effects that share the same correlated compounds.  These effects are in the upper left of the diagram.   Likewise, stress is slightly  removed from the bulk of the reported effects.  This view suggests Spasticity may have been miscategorized. Spasticity lies within the larger confusion matrix.
+ 
 Category I reported effects did not have any strong correlations that would support linear 
     regression analysis, all effects were  analyzed as classification functions.
 
