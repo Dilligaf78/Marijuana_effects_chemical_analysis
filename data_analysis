@@ -1,0 +1,994 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# read the training data
+train_data = pd.read_csv("~mjdb.csv", index_col=0)
+train_data = train_data.fillna(0)
+predict_data = train_data.iloc[:,42:]
+train_data = train_data.iloc[:,:42]
+
+
+# In[296]:
+
+
+# select feature variables to be scaled
+features = train_data.iloc[:,1:42]
+
+# remove features that are not present in regression effects
+removeFeat = ['Ocimene', 'Trans-Nerolidol1', 'cis-Nerolidol', 'trans-Ocimene']
+
+for rf in removeFeat:
+    features.drop([rf], axis = 1, inplace=True)
+
+max_abs_scaler = preprocessing.MaxAbsScaler()
+
+#fit and transform and save as X 
+X = max_abs_scaler.fit_transform(features)
+
+
+# In[298]:
+
+
+# Test regression models for fit
+
+
+effectRegression = ['Eye Pressure', 'Epilepsy', 'Siezure', 'Pain', 'Stress', 'Spasticity',
+                    'Arthritis', 'Fatigue']
+# List of regression descriptive names
+results = {}
+names = [
+    "Linear Regression",
+    "Ridge",
+    "Random Forest",
+    "ElasticNet",
+    "Lasso",
+    "Logistic",
+    "neighbors",
+    "MLP",
+    "Gaussian"
+    
+]
+# List of classifiers to try
+regressors = [
+    linear_model.LinearRegression(),
+    linear_model.Ridge(alpha=0.5),
+    ensemble.RandomForestRegressor(),   
+    linear_model.ElasticNet(),
+    linear_model.Lasso(alpha=0.1),
+    linear_model.LogisticRegression(),
+    neighbors.KNeighborsRegressor(),
+    MLPRegressor(max_iter=100000000),
+    gaussian_process.GaussianProcessRegressor()
+]
+
+# iterate through each effect
+
+for name, regr in zip(names, regressors):
+    for effect in effectRegression:
+    
+        y = train_data[effect]
+        X = features
+        # randomly split the data
+        train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=0.5, random_state=42)
+        
+        scaler = StandardScaler()
+        train_X = scaler.fit_transform(train_X)
+        test_X = scaler.transform(test_X)
+        # train each model for each outcome
+        regr.fit(train_X, train_y)
+        score = regr.score(test_X, test_y)
+       
+
+
+# In[300]:
+
+
+# analysis of regression effects after removal of large p-value coefficients
+
+regrEffects = ['Eye Pressure', 'Epilepsy', 'Siezure', 'Pain', 'Arthritis', 'Fatigue']
+
+highp = ['Delta8-THC','CBGa','THC acid','Delta9-THC acid','Beta-Ocimene','3-Carene',
+         'Alpha-Terpinene','Gamma-Terpinene','Eucalyptol','Terpinolene','Isopulegol','Geraniol','Guaiol',
+         'Alpha-Bisabolol','Beta-Caryophyllene','Alpha-Humulene','p-Cymene','trans-Nerolidol',
+         'gamma-Terpinene\t']
+
+# select feature variables to be scaled
+simFeatures = train_data.iloc[:,1:42]
+
+# remove features that are not present in regression effects
+removeFeat = ['Ocimene', 'Trans-Nerolidol1', 'cis-Nerolidol', 'trans-Ocimene']
+removeFeat = removeFeat + highp
+
+for rf in removeFeat:
+    simFeatures.drop([rf], axis = 1, inplace=True)
+
+max_abs_scaler = preprocessing.MaxAbsScaler()
+
+#fit and transform and save as X 
+Xsim = max_abs_scaler.fit_transform(simFeatures)
+
+# List of regression descriptive names
+results = {}
+names = [
+    "Linear Regression",
+    "Ridge",
+    "Random Forest",
+    "ElasticNet",
+    "Lasso",
+    "Logistic",
+    "neighbors",
+    "MLP",
+    "Gaussian"
+    
+]
+# List of classifiers to try
+regressors = [
+    linear_model.LinearRegression(),
+    linear_model.Ridge(alpha=0.5),
+    ensemble.RandomForestRegressor(),   
+    linear_model.ElasticNet(),
+    linear_model.Lasso(alpha=0.1),
+    linear_model.LogisticRegression(),
+    neighbors.KNeighborsRegressor(),
+    MLPRegressor(max_iter=100000000),
+    gaussian_process.GaussianProcessRegressor()
+]
+
+# iterate through each effect
+
+for name, regr in zip(names, regressors):
+    for effect in regrEffects:
+    
+        y = train_data[effect]
+        X = Xsim
+        # randomly split the data
+        train_X, test_X, train_y, test_y = train_test_split(Xsim, y, test_size=0.2, random_state=42)
+        
+        scaler = StandardScaler()
+        train_X = scaler.fit_transform(train_X)
+        test_X = scaler.transform(test_X)
+        # train each model for each outcome
+        regr.fit(train_X, train_y)
+        score = regr.score(test_X, test_y)
+        
+
+
+# In[295]:
+
+
+# for high scoring models, get the regression formula:
+    
+regrfeatures = list(simFeatures)+['intercept']+['score']
+print(regrfeatures)
+
+regrDF = pd.DataFrame([regrfeatures])
+
+effect_logistic = ['Eye Pressure', 'Epilepsy', 'Siezure', 'Pain', 'Arthritis', 'Fatigue']
+
+for effect in effect_logistic:
+    
+    regr = linear_model.LogisticRegression(C=1e6)
+    
+    effectData = []
+    
+    y = train_data[effect]
+
+    X = simFeatures
+    
+    
+    # randomly split the data
+    train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=0.4, random_state=42)
+
+    # scale data
+    scaler = StandardScaler()
+    train_X = scaler.fit_transform(train_X)
+    test_X = scaler.transform(test_X)
+    
+    regr.fit(train_X, train_y)
+
+   # Add a constant term to the features matrix for statsmodels
+    X_train_with_const = sm.add_constant(train_X)
+
+    # Fit OLS regression using statsmodels for hypothesis testing
+    regrModel = sm.RLM(train_y, X_train_with_const)
+    result = regrModel.fit()
+
+    # Display summary including p-values
+    print(result.summary())
+
+    # Add coefficients, intercept and fit to df
+    coefs = regr.coef_.tolist()[0]
+    
+    for coef in coefs:
+        effectData.append(coef)
+    effectData.append(regr.intercept_.tolist()[0])
+    score = regr.score(test_X, test_y)
+    effectData.append(score)
+      
+    regrDF.loc[effect] = effectData
+    
+    # Plot learning curve
+    train_sizes, train_scores, test_scores = learning_curve(regr, X, y, cv=5, scoring='accuracy', n_jobs=-1)
+
+    # Calculate mean and standard deviation for training and test scores
+    train_mean = np.mean(train_scores, axis=1)
+    train_std = np.std(train_scores, axis=1)
+    test_mean = np.mean(test_scores, axis=1)
+    test_std = np.std(test_scores, axis=1)
+
+    # Plot the learning curve
+    plt.figure(figsize=(10, 6))
+    plt.plot(train_sizes, train_mean, label='Training Score', marker='o')
+    plt.fill_between(train_sizes, train_mean - train_std, train_mean + train_std, alpha=0.15)
+    plt.plot(train_sizes, test_mean, label='Cross-Validation Score', marker='o')
+    plt.fill_between(train_sizes, test_mean - test_std, test_mean + test_std, alpha=0.15)
+
+    # Customize the plot
+    plt.title('Learning Curve for Logistic Regression')
+    plt.xlabel('Number of Training Samples')
+    plt.ylabel('Accuracy Score')
+    plt.legend(loc='best')
+    plt.grid(True)
+    plt.show()
+
+    # store dataframe in csv
+filepath = '~regrDF1.csv'
+regrDF.to_csv(filepath)
+
+
+# In[301]:
+
+
+# analysis of regression effects of Stress
+regrEffects = ['Stress']
+
+#list of features with high p values we can ignore
+highp = ['Delta9-THC','CBD','cannabinol','CBG','CBC','THCV','CBDa','THC acid','Delta9-THC acid',
+         'Beta-Ocimene','Linalool','3-Carene','P-Cymene','Eucalyptol','Gamma-Terpinene',
+         'Isopulegol','Geraniol','Guaiol','Beta Caryophyllene Oxide','p-Cymene', 
+         'trans-Nerolidol']
+
+# select feature variables to be scaled
+stressFeatures = train_data.iloc[:,1:42]
+
+# remove features that are not present in regression effects
+removeFeat = ['Ocimene', 'Trans-Nerolidol1', 'cis-Nerolidol', 'trans-Ocimene']
+removeFeat = removeFeat + highp
+
+for rf in removeFeat:
+    stressFeatures.drop([rf], axis = 1, inplace=True)
+
+max_abs_scaler = preprocessing.MaxAbsScaler()
+
+#fit and transform and save as X 
+Xstress = max_abs_scaler.fit_transform(stressFeatures)
+
+# List of regression descriptive names
+results = {}
+names = [
+    "Linear Regression",
+    "Ridge",
+    "Random Forest",
+    "ElasticNet",
+    "Lasso",
+    "Logistic",
+    "neighbors",
+    "MLP",
+    "Gaussian"
+    
+]
+# List of classifiers to try
+regressors = [
+    linear_model.LinearRegression(),
+    linear_model.Ridge(alpha=0.5),
+    ensemble.RandomForestRegressor(),   
+    linear_model.ElasticNet(),
+    linear_model.Lasso(alpha=0.1),
+    linear_model.LogisticRegression(),
+    neighbors.KNeighborsRegressor(),
+    MLPRegressor(max_iter=100000000),
+    gaussian_process.GaussianProcessRegressor()
+]
+
+# iterate through each effect
+
+for name, regr in zip(names, regressors):
+    for effect in regrEffects:
+    
+        y = train_data[effect]
+        X = Xstress
+        # randomly split the data
+        train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=0.4, random_state=42)
+        
+        scaler = StandardScaler()
+        train_X = scaler.fit_transform(train_X)
+        test_X = scaler.transform(test_X)
+        # train each model for each outcome
+        regr.fit(train_X, train_y)
+        score = regr.score(test_X, test_y)
+        
+        # Plot learning curve
+        train_sizes, train_scores, test_scores = learning_curve(regr, X, y, cv=5, scoring='accuracy', n_jobs=-1)
+
+        # Calculate mean and standard deviation for training and test scores
+        train_mean = np.mean(train_scores, axis=1)
+        train_std = np.std(train_scores, axis=1)
+        test_mean = np.mean(test_scores, axis=1)
+        test_std = np.std(test_scores, axis=1)
+
+        # Plot the learning curve
+        plt.figure(figsize=(10, 6))
+        plt.plot(train_sizes, train_mean, label='Training Score', marker='o')
+        plt.fill_between(train_sizes, train_mean - train_std, train_mean + train_std, alpha=0.15)
+        plt.plot(train_sizes, test_mean, label='Cross-Validation Score', marker='o')
+        plt.fill_between(train_sizes, test_mean - test_std, test_mean + test_std, alpha=0.15)
+
+        # Customize the plot
+        plt.title('Learning Curve for Logistic Regression')
+        plt.xlabel('Number of Training Samples')
+        plt.ylabel('Accuracy Score')
+        plt.legend(loc='best')
+        plt.grid(True)
+        plt.show()
+
+
+# In[302]:
+
+
+# for high scoring model, get the regression formula of Stress:
+    
+regrfeatures = list(stressFeatures)+['intercept']+['score']
+print(regrfeatures)
+
+regrDF = pd.DataFrame([regrfeatures])
+
+effect_logistic = ['Stress']
+
+for effect in effect_logistic:
+    
+    regr = linear_model.LogisticRegression(C=1e6)
+    
+    effectData = []
+    
+    y = train_data[effect]
+
+    X = Xstress
+ 
+    
+    # randomly split the data
+    train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=0.5, random_state=42)
+
+    # scale data
+    scaler = StandardScaler()
+    train_X = scaler.fit_transform(train_X)
+    test_X = scaler.transform(test_X)
+    
+    regr.fit(train_X, train_y)
+
+   # Add a constant term to the features matrix for statsmodels
+    X_train_with_const = sm.add_constant(train_X)
+
+    # Fit OLS regression using statsmodels for hypothesis testing
+    regrModel = sm.RLM(train_y, X_train_with_const)
+    result = regrModel.fit()
+
+    # Display summary including p-values
+    print(result.summary())
+
+    # Add coefficients, intercept and fit to df
+    coefs = regr.coef_.tolist()[0]
+    
+    for coef in coefs:
+        effectData.append(coef)
+    effectData.append(regr.intercept_.tolist()[0])
+    score = regr.score(test_X, test_y)
+    effectData.append(score)
+      
+    regrDF.loc[effect] = effectData
+
+    # store dataframe in csv
+filepath = 'C:/Users/sarae/Downloads/6zwcgrttkp-1/Strain data/strains/regrDF2.csv'
+regrDF.to_csv(filepath)
+
+
+# In[303]:
+
+
+# analysis of regression effects of Spasticity
+regrEffects = ['Spasticity']
+
+#list of features with high p values we can ignore
+highp = ['Delta9-THC','CBD','Delta9-THC acid','cannabinol','CBG','CBC','THCV','CBDa','Delta8-THC',
+         'D-Limonene', 'Beta-Ocimene','Camphene','P-Cymene','Humulene','Trans-Nerolidol2', 
+         'Isopulegol','Geraniol', 'Beta Caryophyllene Oxide','Beta-Pinene', 'Linalool', 
+         'Alpha-Pinene', 'Caryophyllene']
+
+# select feature variables to be scaled
+spasFeatures = train_data.iloc[:,1:42]
+
+# remove features that are not present in regression effects
+removeFeat = ['Ocimene', 'Trans-Nerolidol1', 'cis-Nerolidol', 'trans-Ocimene']
+removeFeat = removeFeat + highp
+
+for rf in removeFeat:
+    spasFeatures.drop([rf], axis = 1, inplace=True)
+
+max_abs_scaler = preprocessing.MaxAbsScaler()
+
+#fit and transform and save as X 
+Xspas = max_abs_scaler.fit_transform(spasFeatures)
+
+# List of regression descriptive names
+results = {}
+names = [
+    "Linear Regression",
+    "Ridge",
+    "Random Forest",
+    "ElasticNet",
+    "Lasso",
+    "Logistic",
+    "neighbors",
+    "MLP",
+    "Gaussian"
+    
+]
+# List of classifiers to try
+regressors = [
+    linear_model.LinearRegression(),
+    linear_model.Ridge(alpha=0.5),
+    ensemble.RandomForestRegressor(),   
+    linear_model.ElasticNet(),
+    linear_model.Lasso(alpha=0.1),
+    linear_model.LogisticRegression(),
+    neighbors.KNeighborsRegressor(),
+    MLPRegressor(max_iter=100000000),
+    gaussian_process.GaussianProcessRegressor()
+]
+
+# iterate through each effect
+
+for name, regr in zip(names, regressors):
+    for effect in regrEffects:
+    
+        y = train_data[effect]
+        X = Xspas
+        # randomly split the data
+        train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=0.5, random_state=42)
+        
+        scaler = StandardScaler()
+        train_X = scaler.fit_transform(train_X)
+        test_X = scaler.transform(test_X)
+        # train each model for each outcome
+        regr.fit(train_X, train_y)
+        score = regr.score(test_X, test_y)
+        if score > 0:
+            print(effect, name, ': ', score)
+            
+
+        # Plot learning curve
+        train_sizes, train_scores, test_scores = learning_curve(regr, X, y, cv=5, scoring='accuracy', n_jobs=-1)
+
+        # Calculate mean and standard deviation for training and test scores
+        train_mean = np.mean(train_scores, axis=1)
+        train_std = np.std(train_scores, axis=1)
+        test_mean = np.mean(test_scores, axis=1)
+        test_std = np.std(test_scores, axis=1)
+
+        # Plot the learning curve
+        plt.figure(figsize=(10, 6))
+        plt.plot(train_sizes, train_mean, label='Training Score', marker='o')
+        plt.fill_between(train_sizes, train_mean - train_std, train_mean + train_std, alpha=0.15)
+        plt.plot(train_sizes, test_mean, label='Cross-Validation Score', marker='o')
+        plt.fill_between(train_sizes, test_mean - test_std, test_mean + test_std, alpha=0.15)
+
+        # Customize the plot
+        plt.title('Learning Curve for Logistic Regression')
+        plt.xlabel('Number of Training Samples')
+        plt.ylabel('Accuracy Score')
+        plt.legend(loc='best')
+        plt.grid(True)
+        plt.show()
+        
+
+
+# In[304]:
+
+
+# for high scoring model, get the regression formula of Spasticity:
+    
+regrfeatures = list(spasFeatures)+['intercept']+['score']
+print(regrfeatures)
+
+regrDF = pd.DataFrame([regrfeatures])
+
+effect_logistic = ['Spasticity']
+
+for effect in effect_logistic:
+    
+    regr = linear_model.LogisticRegression()
+    
+    effectData = []
+    
+    y = train_data[effect]
+
+    X = Xspas
+ 
+    
+    # randomly split the data
+    train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # scale data
+    scaler = StandardScaler()
+    train_X = scaler.fit_transform(train_X)
+    test_X = scaler.transform(test_X)
+    
+    regr.fit(train_X, train_y)
+
+   # Add a constant term to the features matrix for statsmodels
+    X_train_with_const = sm.add_constant(train_X)
+
+    # Fit OLS regression using statsmodels for hypothesis testing
+    regrModel = sm.RLM(train_y, X_train_with_const)
+    result = regrModel.fit()
+
+    # Display summary including p-values
+    print(result.summary())
+
+    # Add coefficients, intercept and fit to df
+    coefs = regr.coef_.tolist()[0]
+    
+    for coef in coefs:
+        effectData.append(coef)
+    effectData.append(regr.intercept_.tolist()[0])
+    score = regr.score(test_X, test_y)
+    effectData.append(score)
+      
+    regrDF.loc[effect] = effectData
+            # Plot learning curve
+    train_sizes, train_scores, test_scores = learning_curve(regr, X, y, cv=5, scoring='accuracy', n_jobs=-1)
+
+    # Calculate mean and standard deviation for training and test scores
+    train_mean = np.mean(train_scores, axis=1)
+    train_std = np.std(train_scores, axis=1)
+    test_mean = np.mean(test_scores, axis=1)
+    test_std = np.std(test_scores, axis=1)
+
+    # Plot the learning curve
+    plt.figure(figsize=(10, 6))
+    plt.plot(train_sizes, train_mean, label='Training Score', marker='o')
+    plt.fill_between(train_sizes, train_mean - train_std, train_mean + train_std, alpha=0.15)
+    plt.plot(train_sizes, test_mean, label='Cross-Validation Score', marker='o')
+    plt.fill_between(train_sizes, test_mean - test_std, test_mean + test_std, alpha=0.15)
+
+    # Customize the plot
+    plt.title('Learning Curve for Logistic Regression')
+    plt.xlabel('Number of Training Samples')
+    plt.ylabel('Accuracy Score')
+    plt.legend(loc='best')
+    plt.grid(True)
+    plt.show()
+
+    # store dataframe in csv
+filepath = '~regrDF3.csv'
+regrDF.to_csv(filepath)
+
+
+# In[305]:
+
+
+# read the training data
+train_class_data = pd.read_csv("~mjdb.csv", index_col=0)
+train_class_data = train_class_data.fillna(0)
+
+
+# In[306]:
+
+
+effectList = list(train_class_data.columns)[42:]
+
+
+# In[307]:
+
+
+for effect in effectList:
+    newvalues = []
+    holdvalues = list(train_class_data[effect])
+    for value in holdvalues:
+        if int(value) > 0:
+            newvalues.append(1)
+        else:
+            newvalues.append(0)
+            
+    train_class_data[effect] = newvalues
+
+
+# In[308]:
+
+
+# select feature variables to be scaled
+features = train_class_data.iloc[:,1:42]
+
+max_abs_scaler = preprocessing.MaxAbsScaler()
+
+#fit and transform and save as X 
+Xclass = max_abs_scaler.fit_transform(features)
+
+
+# In[309]:
+
+
+for effect in effectList:
+    if sum(train_class_data[effect]) ==431:
+
+        train_class_data.drop([effect], axis=1, inplace=True)
+
+
+# In[310]:
+
+
+classeffects =list(train_class_data.columns)[42:]
+
+
+# In[311]:
+
+
+neweffect = []
+for effect in classeffects:
+    if effect not in effect_logistic:
+        neweffect.append(effect)
+        
+classeffects = neweffect
+
+
+# In[112]:
+
+
+# List of classifier descriptive names
+results = {}
+names = [ 
+    "Linear SVM", 
+    "RBF SVM",
+    "Gaussian Process",
+    "Decision Tree",
+    "Random Forest",
+    "Neural Net",
+    "AdaBoost",
+    "Naive Bayes",
+]
+# List of classifiers to try
+classifiers = [
+
+    SVC(kernel="linear", C=0.025),
+    SVC(gamma=2, C=1),
+    GaussianProcessClassifier(1.0 * RBF(1.0)),
+    DecisionTreeClassifier(max_depth=5),
+    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
+    MLPClassifier(alpha=1, max_iter=10000),
+    AdaBoostClassifier(),
+    GaussianNB()]
+#QuadraticDiscriminantAnalysis(),
+#KNeighborsClassifier(3),
+
+
+# iterate through each outcome
+for effect in classeffects:
+    
+    y = train_class_data[effect]
+    # randomly split the data
+    train_X, test_X, train_y, test_y = train_test_split(Xclass, y, test_size=0.5, random_state=42)
+    
+    # train each model for each outcome
+    for name, clf in zip(names, classifiers):
+        clf.fit(train_X, train_y)
+        predict = clf.predict(Xclass)
+        score = balanced_accuracy_score(y, predict)
+        print(effect, name, ': ', score)
+
+
+# In[ ]:
+
+
+#Method to run AdaBoost clf
+def run_adaboost_clf(features,y):
+    
+    #fit and transform and save as X 
+    max_abs_scaler = preprocessing.MaxAbsScaler()
+    
+    X = max_abs_scaler.fit_transform(features)   
+    
+
+    # Create an AdaBoost classifier using a decision tree as the base learner
+    clf = AdaBoostClassifier(n_estimators=50, random_state=42)
+
+    # randomly split the data
+    train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # train each model for each outcome
+    clf.fit(train_X, train_y)
+    predict = clf.predict(test_X)
+    
+    score = balanced_accuracy_score(test_y, predict)
+    accuracy = accuracy_score(test_y, predict)
+    feature_importance_scores = clf.feature_importances_.tolist()
+   
+    
+    return score, accuracy, feature_importance_scores
+
+
+# In[313]:
+
+
+# CategoryII classification
+catIIeffects = ['Anxious','Depression','Aroused','Eye Pressure','Talkative','Epilepsy',
+                'Migraines','Dizzy','Anxiety','Siezure','Creative','Headache','Energetic',
+                'Hungry','Tingly','Dry Eyes','Pain','Focused','Paranoid','Stress','Arthritis'
+]
+
+clfDF = pd.DataFrame([clfcolumns])
+
+for effect in catIIeffects:
+    # prepare iniital list of features
+    features = train_class_data.iloc[:,1:42]
+    
+    y = train_class_data[effect]
+
+
+    while  True:
+        featList = list(features)
+        clf = run_adaboost_clf(features,y)
+        feature_importance_scores = clf[2:]
+        feature_importance_scores = feature_importance_scores[0]
+        
+        # Access feature importance scores
+        b = len(list(features))
+        effectvalues = []
+        for n in range(b):
+            
+            if feature_importance_scores[n] == 0:
+                columnname = featList[n]
+                newfeatures = features.drop([columnname], axis = 1, inplace=False)
+                newclf = run_adaboost_clf(newfeatures,y)
+                
+                if newclf[0] >= score:
+                    if newclf[1] >= accuracy:
+                        features.drop([columnname], axis = 1, inplace=True)
+                        score = newclf[0]
+                        accuracy = newclf[1]
+                    else:
+                        effectvalues.append(feature_importance_scores[n])
+                else:
+                    effectvalues.append(feature_importance_scores[n])
+                        
+            else:
+                effectvalues.append(feature_importance_scores[n])
+                
+
+     
+        featList = list(features)
+        c = len(list(features))
+        if b == c:
+            break
+        if c == 0:
+            break
+            
+        
+        
+    clfcolumns = list(features) + ['accuracy'] + ['score']
+    clfDF = pd.DataFrame([clfcolumns])
+    effectvalues.append(accuracy)
+    effectvalues.append(score)
+    clfDF.loc[effect] = effectvalues
+    
+    filepath = '~clfIIDF'+ effect + '.csv'
+    clfDF.to_csv(filepath)   
+
+
+# In[314]:
+
+
+def plot_learning_curve(estimator, X, y, ylim=None, cv=None, n_jobs=None, train_sizes=np.linspace(.1, 1.0, 5)):
+    plt.figure()
+    plt.title("Learning Curve")
+    if ylim is not None:
+        plt.ylim(*ylim)
+    plt.xlabel("Training examples")
+    plt.ylabel("Score")
+
+    train_sizes, train_scores, test_scores = learning_curve(
+        estimator, X, y, cv=cv, n_jobs=n_jobs, train_sizes=train_sizes
+    )
+    
+    train_scores_mean = np.mean(train_scores, axis=1)
+    train_scores_std = np.std(train_scores, axis=1)
+    test_scores_mean = np.mean(test_scores, axis=1)
+    test_scores_std = np.std(test_scores, axis=1)
+
+    plt.grid()
+
+    plt.fill_between(train_sizes, train_scores_mean - train_scores_std,
+                     train_scores_mean + train_scores_std, alpha=0.1,
+                     color="r")
+    plt.fill_between(train_sizes, test_scores_mean - test_scores_std,
+                     test_scores_mean + test_scores_std, alpha=0.1, color="g")
+    plt.plot(train_sizes, train_scores_mean, 'o-', color="r",
+             label="Training score")
+    plt.plot(train_sizes, test_scores_mean, 'o-', color="g",
+             label="Cross-validation score")
+
+    plt.legend(loc="best")
+    return plt
+
+
+# In[316]:
+
+
+# for high scoring model, get the model
+
+clfcolumns = list(catIIFeatures) + ['accuracy'] + ['score']
+clfDF = pd.DataFrame([clfcolumns])
+
+# Create an AdaBoost classifier using a decision tree as the base learner
+clf = AdaBoostClassifier(n_estimators=50, random_state=42)
+for effect in catIIeffects:
+    
+    # Create an AdaBoost classifier using a decision tree as the base learner
+    clf = AdaBoostClassifier(n_estimators=50, random_state=42)
+    y = train_class_data[effect]
+    
+    # randomly split the data
+    train_X, test_X, train_y, test_y = train_test_split(XcatII, y, test_size=0.5, random_state=42)
+    
+    # train each model for each outcome
+    clf.fit(train_X, train_y)
+    predict = clf.predict(test_X)
+    score = balanced_accuracy_score(test_y, predict)
+    # Create an AdaBoost classifier using a decision tree as the base learner
+
+
+    # Evaluate the model
+    accuracy = accuracy_score(test_y, predict)
+    conf_matrix = confusion_matrix(test_y, predict)
+    classification_rep = classification_report(test_y, predict)
+    
+    # Access feature importance scores
+    feature_importance_scores = clf.feature_importances_.tolist()
+    
+    fiList = []
+    for n in range(len(feature_importance_scores)):
+        fiList.append(feature_importance_scores[n])
+
+    fiList.append(accuracy)
+    fiList.append(score)
+      
+    clfDF.loc[effect] = fiList
+    # Plot the learning curve
+    plot_learning_curve(clf, XcatII, y, cv=5, n_jobs=-1)
+    plt.show()
+    # Display results
+    print(f'Accuracy: {accuracy:.3f}')
+    print('Confusion Matrix:')
+    print(conf_matrix)
+    print('Classification Report:')
+    print(classification_rep)
+    print(effect, ': ', score)
+filepath = '~clfIIDF.csv'
+clfDF.to_csv(filepath)   
+
+
+# In[138]:
+
+
+# for high scoring model, get the model
+
+clfcolumns = list(features) + ['accuracy'] + ['score']
+clfDF = pd.DataFrame([clfcolumns])
+
+# Create an AdaBoost classifier using a decision tree as the base learner
+clf = AdaBoostClassifier(n_estimators=50, random_state=42)
+for effect in classeffects:
+    
+    # Create an AdaBoost classifier using a decision tree as the base learner
+    clf = AdaBoostClassifier(n_estimators=50, random_state=42)
+    y = train_class_data[effect]
+    
+    # randomly split the data
+    train_X, test_X, train_y, test_y = train_test_split(Xclass, y, test_size=0.5, random_state=42)
+    
+    # train each model for each outcome
+    clf.fit(train_X, train_y)
+    predict = clf.predict(test_X)
+    score = balanced_accuracy_score(test_y, predict)
+    # Create an AdaBoost classifier using a decision tree as the base learner
+
+
+    # Evaluate the model
+    accuracy = accuracy_score(test_y, predict)
+    conf_matrix = confusion_matrix(test_y, predict)
+    classification_rep = classification_report(test_y, predict)
+    
+    # Access feature importance scores
+    feature_importance_scores = clf.feature_importances_.tolist()
+    
+    fiList = []
+    for n in range(len(feature_importance_scores)):
+        fiList.append(feature_importance_scores[n])
+
+    fiList.append(accuracy)
+    fiList.append(score)
+      
+    clfDF.loc[effect] = fiList
+
+    # Display results
+    print(f'Accuracy: {accuracy:.3f}')
+    print('Confusion Matrix:')
+    print(conf_matrix)
+    print('Classification Report:')
+    print(classification_rep)
+    print(effect, ': ', score)
+filepath = '~clfDF.csv'
+clfDF.to_csv(filepath)   
+
+
+# In[268]:
+
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Define your data
+data = {
+    'Effects': ['Eye Pressure', 'Epilepsy', 'Seizure', 'Pain', 'Arthritis', 'Fatigue', 'Stress', 
+                'Spasticity', 'Aroused', 'Talkative', 'Creative', 'Energetic', 'Hungry', 'Tingly',
+                'Focused', 'Paranoid', 'Depression', 'Migraines', 'Dizzy', 'Anxiety', 'Headache',
+                'Dry Eyes', 'Dry Mouth'],
+    'Compounds': ['CBD','Alpha-Pinene','Eucalyptol','cannabinol','Beta-Myrcene','Caryophyllene',
+                  'Beta-Caryophyllene','Camphene','CBDa','P-Cymene','Terpinolene',
+                  'Gamma-Terpinene','Delta9-THC acid','Alpha-Humulene','Guaiol','Alpha-Terpinene',
+                  'CBGa','Delta8-THC','CBG','D-Limonene','Trans-Nerolidol2','THC acid',
+                  'Beta-Pinene']
+}
+
+# Create a DataFrame
+
+sigdf = pd.read_csv("~sigcomp.csv")
+
+
+# Set up the figure
+plt.figure(figsize=(12, 8))
+sns.set(font_scale=1.1)
+
+# Create a heatmap
+heatmap = sns.heatmap(pd.crosstab(sigdf['Effects'], sigdf['Compounds'], margins=True, margins_name='Total'), annot=True, cmap='coolwarm', cbar=False)
+
+# Customize the plot
+plt.title('Effects vs. Compounds')
+plt.xlabel('Compounds')
+plt.ylabel('Effects')
+
+# Show the plot
+plt.show()
+
+
+# In[275]:
+
+
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+
+# Assuming you already have a DataFrame named 'df'
+# If not, create a DataFrame using your data
+
+# Combine the 'Effects' and 'Compounds' columns into a single text column
+text = ' '.join(sigdf['Effects'] + ' ' + sigdf['Compounds'])
+
+# Generate a word cloud
+wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
+
+# Display the word cloud using matplotlib
+plt.figure(figsize=(10, 5))
+plt.imshow(wordcloud, interpolation='bilinear')
+plt.axis('off')
+plt.show()
+
+
+# In[251]:
